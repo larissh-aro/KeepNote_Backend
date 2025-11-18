@@ -1,0 +1,16 @@
+services:
+  backend:
+    build:
+      context: ./backend/backend
+      dockerfile: Dockerfile
+    container_name: easy_note_backend
+    env_file:
+      - ./backend/backend/.env
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    networks:
+      - easy-net
+
+networks:
+  easy-net:
