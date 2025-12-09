@@ -24,32 +24,75 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => logger.info('Connected to MongoDB - Database: keepddbb'))
   .catch((error) => logger.error('MongoDB connection error:', error));
 
-// Routes will be imported here
+
+// ------------------------------------------------------
+// NOTE ROUTES
+// ------------------------------------------------------
 import noteRoutes from './routes/notes.js';
 app.use('/api/notes', noteRoutes);
 
-// Root: redirect to API docs (avoid "Cannot GET /")
+
+// ------------------------------------------------------
+// MCP TOOL ENDPOINT FOR CREWAI AGENT
+// (Backend receives queries from agent if needed)
+// ------------------------------------------------------
+app.post("/api/agent", async (req, res) => {
+  try {
+    const { query } = req.body;
+
+    if (!query) {
+      return res.status(400).json({
+        success: false,
+        error: "Query is required"
+      });
+    }
+
+    // Backend simply acknowledges the query.
+    // CrewAI agent handles all operations through /api/notes.
+    res.json({
+      success: true,
+      message: "Backend MCP endpoint active.",
+      receivedQuery: query
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+
+// ------------------------------------------------------
+// ROOT → redirect to Swagger docs
+// ------------------------------------------------------
 app.get('/', (req, res) => {
   res.redirect('/api-docs');
 });
 
-// Simple health check
+
+// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
 });
 
-// Swagger UI
+
+// ------------------------------------------------------
+// SWAGGER UI
+// ------------------------------------------------------
 import swaggerSpec from './swagger.js';
 import swaggerUi from 'swagger-ui-express';
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Expose raw swagger.json
 app.get('/swagger.json', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
 });
 
+
+// Start Server
 const PORT = process.env.PORT || 5000;
 logger.info('Swagger docs available at http://localhost:5000/api-docs');
 app.listen(PORT, () => {

@@ -1,18 +1,19 @@
+# Build Stage
 FROM node:18-alpine AS build
 WORKDIR /usr/src/app
 
-# Install production dependencies
+# Install dependencies
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Copy sources
+# Copy source
 COPY . .
 
-# Final image
+# Final Image
 FROM node:18-alpine
 WORKDIR /usr/src/app
 
-# Copy built app from builder
+# Copy built app
 COPY --from=build /usr/src/app /usr/src/app
 
 ENV NODE_ENV=production
