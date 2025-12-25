@@ -171,6 +171,6 @@ app.get('/swagger.json', (req, res) => {
 const PORT = process.env.PORT || 5000;
 logger.info('Swagger docs available at http://localhost:5000/api-docs');
 // Bind explicitly to 127.0.0.1 to ensure IPv4 localhost requests succeed
-app.listen(PORT, '127.0.0.1', () => {
+app.listen(PORT, '0.0.0.0', () => {
   logger.info(`Server is running on port ${PORT}`);
 });
