@@ -65,6 +65,81 @@ app.post("/api/agent", async (req, res) => {
 
 
 // ------------------------------------------------------
+// CHAT → Run agent for a single message using Python runner
+// ------------------------------------------------------
+import { spawn } from 'child_process';
+
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ success: false, error: 'message is required' });
+
+    const pyPath = path.join(__dirname, '..', 'Ai Agent', 'run_single.py');
+    const pythonExec = process.env.PYTHON_PATH || process.env.PYTHON || 'python';
+    // Allow longer time for model/LLM startup — make configurable via env CHAT_PY_TIMEOUT_MS
+    const timeoutMs = parseInt(process.env.CHAT_PY_TIMEOUT_MS || '120000', 10);
+
+    // Spawn child asynchronously so the main Node event loop stays responsive
+    const child = spawn(pythonExec, [pyPath, message], { stdio: ['ignore', 'pipe', 'pipe'] });
+
+    let stdout = '';
+    let stderr = '';
+    let finished = false;
+
+    const killTimer = setTimeout(() => {
+      if (!finished) {
+        child.kill('SIGKILL');
+      }
+    }, timeoutMs);
+
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+
+    child.on('error', (err) => {
+      clearTimeout(killTimer);
+      logger.error('Agent spawn error', err);
+      return res.status(500).json({ success: false, error: err.message, stderr, stdout });
+    });
+
+    child.on('close', (code, signal) => {
+      finished = true;
+      clearTimeout(killTimer);
+
+      stdout = stdout ? stdout.trim() : '';
+      stderr = stderr ? stderr.trim() : '';
+
+      if (!stdout) {
+        logger.error('Agent produced no stdout', { code, signal, stderr, stdout });
+        return res.status(500).json({ success: false, error: 'No output from agent', code, signal, stderr });
+      }
+
+      let parsed = null;
+      try {
+        parsed = JSON.parse(stdout);
+      } catch (e) {
+        parsed = { raw: stdout };
+      }
+
+      const actions = parsed.actions || null;
+      let responses = parsed.responses || parsed.raw || [];
+      if (typeof responses === 'string') responses = [responses];
+      else if (!Array.isArray(responses)) responses = [String(responses)];
+
+      return res.json({ success: true, actions, responses, stderr });
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
+// ------------------------------------------------------
 // ROOT → redirect to Swagger docs
 // ------------------------------------------------------
 app.get('/', (req, res) => {
@@ -95,6 +170,7 @@ app.get('/swagger.json', (req, res) => {
 // Start Server
 const PORT = process.env.PORT || 5000;
 logger.info('Swagger docs available at http://localhost:5000/api-docs');
-app.listen(PORT, () => {
+// Bind explicitly to 127.0.0.1 to ensure IPv4 localhost requests succeed
+app.listen(PORT, '127.0.0.1', () => {
   logger.info(`Server is running on port ${PORT}`);
 });
